@@ -375,3 +375,15 @@ SELECT EMP_ID, EMP_NAME, NVL(DEPT_CODE,'없음'), SALARY
 FROM EMPLOYEE
 WHERE (NVL(DEPT_CODE,'없음'), SALARY) IN (SELECT NVL(DEPT_CODE,'없음'), MAX(SALARY) FROM EMPLOYEE GROUP BY DEPT_CODE)
 ORDER BY SALARY DESC;
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+/*
+    5. 인라인 뷰(INLINE VIEW)
+    FROM 절에 서브 쿼리를 제시하는 것
+    
+    FROM 테이블명
+    FROM (서브쿼리) => FROM ResultSet
+    
+    서브쿼리를 수행한 결과 (ResultSet)을 테이블 대신에 사용함
+*/
