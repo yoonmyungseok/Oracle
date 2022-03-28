@@ -408,6 +408,332 @@ INSERT INTO MEM_PRIMARYKEY3 VALUES (2, NULL, 'pass02', '김개똥',null,null,nul
     
     [표현법]
     -컬럼레벨 방식
+    컬럼명 자료형 [CONSTRAINT 제약조건명] REFERENCES 참조할테이블명(참조할컬럼명)
     
     -테이블레벨 방식
+    [CONSTRAINT 제약조건명] FOREIGN KEY (제약조건을걸컬럼명) REFERENCES 참조할테이블명(참조할컬럼명)
+    
+    단, 두 방식 모두 참조할컬럼명은 생략 가능하다
+    이 경우 기본적으로 참조할테이블의 PRIMARY KEY 컬럼으로 참조할컬럼명이 자동으로 잡힌다
+    CONSTRAINT 제약조건명은 생략 가능하다
 */
+
+--테스트를 위한 부모 테이블 생성
+--회원 등급에 대한 데이터(등급코드, 등급명)를 보관하는 테이블
+CREATE TABLE MEM_GRADE(
+    GRADE_CODE CHAR(2) PRIMARY KEY,
+    GRADE_NAME VARCHAR2(20) NOT NULL
+);
+
+INSERT INTO MEM_GRADE VALUES('G1','일반회원');
+INSERT INTO MEM_GRADE VALUES('G2','우수회원');
+INSERT INTO MEM_GRADE VALUES('G3','특별회원');
+
+SELECT * FROM MEM_GRADE;
+
+--자식 테이블(외래키 제약조건 걸어보기)
+CREATE TABLE MEM(
+    MEM_NO NUMBER PRIMARY KEY,
+    MEM_ID VARCHAR2(20) NOT NULL UNIQUE,
+    MEM_PWD VARCHAR2(20) NOT NULL,
+    MEM_NAME VARCHAR2(20) NOT NULL,
+    GRADE_ID CHAR(2) REFERENCES MEM_GRADE(GRADE_CODE), --컬럼레벨 방식
+    GENDER CHAR(3) CHECK (GENDER IN ('남','여')),
+    PHONE VARCHAR2(15),
+    EMAIL VARCHAR2(30),
+    MEM_DATE DATE DEFAULT SYSDATE
+);
+
+INSERT INTO MEM VALUES(1,'user01','pass01','홍길동','G1',NULL,NULL,NULL,DEFAULT);
+INSERT INTO MEM VALUES(2,'user02','pass02','김말똥','G2',NULL,NULL,NULL,DEFAULT);
+INSERT INTO MEM VALUES(3,'user03','pass03','고영희','G1',NULL,NULL,NULL,DEFAULT);
+INSERT INTO MEM VALUES(4, 'user04','pass04','박개똥',NULL,NULL,NULL,NULL,DEFAULT);
+--외래키 제약조건이 걸려있는 컬럼에는 기본적으로 NULL값이 들어갈 수 있다
+
+INSERT INTO MEM VALUES(5,'user05','pass05','고길동','G5',NULL,NULL,NULL,DEFAULT);
+--integrity constraint (DDL.SYS_C007166) violated - parent key not found
+--PARENT KEY NOT FOUND
+--G5 등급이 부모테이블인 MEM_GRADE 테이블의 GRADE_CODE 컬럼에서 제공하는 값이 아니기 때문에 오류 발생
+
+--문제)부모테이블(MEM_GRADE)에서 데이터값이 삭제된다면?
+--MEM_GRADE 테이블로부터 GRADE_CODE가 G1인 데이터를 지우기
+DELETE FROM MEM_GRADE WHERE GRADE_CODE='G1';
+--integrity constraint (DDL.SYS_C007166) violated - child record found
+--CHILD RECODE FOUND 
+--자식테이블 (MEM) 중에 G1이라는 값을 사용하고있는 행들이 존재하기 때문에 부모값을 삭제할 수가 없다
+--현재 외래키 제약조건 부여시 추가적으로 삭제옵션을 부여하지 않았음
+--자식테이블에서 사용하고 있는 값이 있을 경우 삭제가 되지 않는 "삭제 제한 옵션"이 기본적으로 걸려있음
+
+DELETE FROM MEM_GRADE WHERE GRADE_CODE='G3'; --자식테이블에서 사용되고 있는 값이 아니기 때문에 삭제가 가능함
+
+SELECT * FROM MEM_GRADE;
+
+--그동안 테스트했던거 되돌리기
+ROLLBACK;
+
+--MEM 테이블 삭제
+DROP TABLE MEM;
+
+/*
+    자식 테이블을 생성 시(외래키 제약조건을 부여 시)
+    부모 테이블의 데이터가 삭제되었을 때 자식 테이블에서는 어떻게 삭제된 값에 대해서 처리 할 것인지를 옵션으로 정해놓을 수 있음
+    
+    * FOREIGN KEY 삭제 옵션
+    -ON DELETE RESTRICTED: 삭제 옵션을 별도로 제시하지 않았을 때(기본값)=> 삭제 제한
+    -ON DELETE SET NULL: 부모데이터를 삭제 시 해당 데이터를 사용하고있는 자식데이터를 NULL로 변경
+    -ON DELETE CASCADE: 부모데이터를 삭제 시 해당 데이터를 사용하고있는 자식데이터도 같이 삭제
+*/
+
+--1) ON DELETE SET NULL: 부모데이터 삭제 시 해당 데이터를 사용하고 있는 자식데이터를 NULL로 변경하는 옵션
+CREATE TABLE MEM(
+    MEM_NO NUMBER PRIMARY KEY,
+    MEM_ID VARCHAR2(20) NOT NULL UNIQUE,
+    MEM_PWD VARCHAR2(20) NOT NULL,
+    MEM_NAME VARCHAR2(20) NOT NULL,
+    GRADE_ID CHAR(2) REFERENCES MEM_GRADE(GRADE_CODE), 
+    GENDER CHAR(3) CHECK (GENDER IN ('남','여')),
+    PHONE VARCHAR2(15),
+    EMAIL VARCHAR2(30),
+    MEM_DATE DATE DEFAULT SYSDATE,
+    FOREIGN KEY (GRADE_ID) REFERENCES MEM_GRADE(GRADE_CODE) ON DELETE SET NULL
+);
+
+SELECT * FROM MEM;
+
+--부모테이블(MEM_GRADE)의 GRADE_CODE가 G1인 데이터 삭제
+DELETE FROM MEM_GRADE WHERE GRADE_CODE='G1'; --문제없이 잘 삭제가 됨
+
+--자식테이블(MEM)의 GRADE_ID가 G1인 부분은? NULL값으로 바뀜
+
+--그동안 테스트했던거 되돌리기
+ROLLBACK;
+
+--MEM 테이블 삭제
+DROP TABLE MEM;
+
+--2)ON DELETE CASCADE : 부모데이터를 삭제 시 해당 데이터를 사용하고 있는 자식 데이터도 같이 삭제하는 옵션
+CREATE TABLE MEM(
+    MEM_NO NUMBER PRIMARY KEY,
+    MEM_ID VARCHAR2(20) NOT NULL UNIQUE,
+    MEM_PWD VARCHAR2(20) NOT NULL,
+    MEM_NAME VARCHAR2(20) NOT NULL,
+    GRADE_ID CHAR(2),
+    GENDER CHAR(3) CHECK (GENDER IN ('남','여')),
+    PHONE VARCHAR2(15),
+    EMAIL VARCHAR2(30),
+    MEM_DATE DATE DEFAULT SYSDATE,
+    FOREIGN KEY (GRADE_ID) REFERENCES MEM_GRADE(GRADE_CODE) ON DELETE CASCADE
+);
+
+SELECT * FROM MEM;
+
+--부모테이블(MEM_GRADE)의 G1을 삭제
+DELETE FROM MEM_GRADE WHERE GRADE_CODE='G1'; --문제없이 잘 삭제됨
+--자식테이블 (MEM)의 GRADE_ID가 G1인 행들은? 함께 삭제가 되어버림
+
+--[참고]
+--외래키와 조인
+--전체 회원의 회원번호, 아이디, 비밀번호, 이름, 등급명 조회
+-->>오라클 전용 구문
+SELECT MEM_NO, MEM_ID, MEM_PWD, MEM_NAME, GRADE_NAME
+FROM MEM, MEM_GRADE
+WHERE GRADE_ID=GRADE_CODE(+);
+
+-->>ANSI 구문
+SELECT MEM_NO, MEM_ID, MEM_PWD, MEM_NAME, GRADE_NAME
+FROM MEM
+LEFT JOIN MEM_GRADE ON (GRADE_ID=GRADE_CODE);
+
+/*
+    굳이 외래키 제약조건이 걸려있지 않더라도 JOIN이 가능함
+    다만, 두 컬럼에 동일한 의미의 데이터만 담겨있다면 매칭해서 JOIN 조회 가능함
+    
+*/
+
+ROLLBACK;
+
+DROP TABLE MEM;
+
+--[참고] 서브쿼리를 이용한 테이블 생성(테이블 복사의 개념)
+
+/*
+    ---여기서부터 KH계정으로 접속해서 테스트---
+    
+    *SUBQUERY를 이용한 테이블 생성(테이블 복사 뜨는 개념)
+    서브쿼리: 메인 SQL문(SELECT, CREATE, INSERT, UPDATE)를 보조역할 하는 쿼리문 (SELECT)
+    
+    [표현법]
+    CREATE TABLE 테이블명 AS (서브쿼리);
+    
+    해당 서브쿼리를 실행한 결과를 이용해서 새로운 테이블을 생성하는 개념
+*/
+
+--EMPLOYEE 테이블을 복제한 새로운 테이블 생성(EMPLOYEE_COPY)
+CREATE TABLE EMPLOYEE_COPY AS (SELECT * FROM EMPLOYEE);
+
+-->컬럼들, 조회결과의 데이터값들이 잘 복사됨 + 제약조건의 경우에는 NOT NULL만 복사됨
+
+SELECT * FROM EMPLOYEE_COPY;
+
+--EMPLOYEE 테이블에 있는 컬럼의 구조만 복사하고싶음. 데이터값은 필요없는 경우
+CREATE TABLE EMPLOYEE_COPY2 AS (SELECT * FROM EMPLOYEE WHERE 1=0); 
+--WHERE절에 거짓을 작성해준다
+SELECT * FROM EMPLOYEE_COPY2;
+
+--전체 사원들 중 급여가 300만원 이상인 사원들의 사번, 이름, 부서코드, 급여 컬럼을 복제
+CREATE TABLE EMPLOYEE_COPY3 AS (SELECT EMP_ID, EMP_NAME, DEPT_CODE, SALARY FROM EMPLOYEE WHERE SALARY>=3000000);
+SELECT * FROM EMPLOYEE_COPY3;
+
+--전체 사원의 사번, 사원명, 급여, 연봉 조회 결과 테이블을 생성
+CREATE TABLE EMPLOYEE_COPY4 AS
+(SELECT EMP_ID, EMP_NAME, SALARY, SALARY*12 FROM EMPLOYEE);
+--must name this expression with a column alias
+--서브쿼리의 SELECT절 부분에 산술연산 또는 함수식이 기술된 경우 반드시 별칭 부여를 해야함
+
+CREATE TABLE EMPLOYEE_COPY4 AS (SELECT EMP_ID, EMP_NAME, SALARY, SALARY*12 "연봉" FROM EMPLOYEE);
+SELECT * FROM EMPLOYEE_COPY4;
+
+--[참고] 기존 테이블에 제약조건을 추가하는 방법
+/*
+    *테이블이 이미 다 생성된 후 뒤늦게 제약조건을 추가(ALTER TABLE 테이블명 ~~)
+    
+    -PRIMARY KEY: ADD PRIMARY KEY(컬럼명);
+    -FOREIGN KEY: ADD FOREIGN KEY(컬럼명) REFERENCES 참조할테이블명(참조할컬럼명);
+                        ->참조할컬럼명은 생략 가능, 이 경우 참조할테이블명의 PRIMARY KEY로 잡힌다
+    -UNIQUE: ADD UNIQUE (컬럼명);
+    -CHECK: ADD CHECK (컬럼에 대한 조건식);
+    -NOT NULL: MODIFY 컬럼명 NOT NULL;
+*/
+--EMPLOYEE_COPY 테이블에 없는 PRIMARY KEY 제약조건을 추가 (EMP_ID)
+ALTER TABLE EMPLOYEE_COPY ADD PRIMARY KEY (EMP_ID);
+
+--EMPLOYEE_COPY 테이블의 DEPT_CODE 컬럼에 외래키 제약조건을 추가 (DEPARTMENT테이블의 DEPT_ID 컬럼을 참조)
+ALTER TABLE EMPLOYEE_COPY ADD FOREIGN KEY (DEPT_CODE) REFERENCES DEPARTMENT(DEPT_ID); 
+
+--EMPLOYEE_COPY 테이블에 JOB_CODE컬럼에 외래키 제약조건을 추가(JOB테이블의 JOB_CODE 컬럼을 참조)
+ALTER TABLE EMPLOYEE_COPY ADD FOREIGN KEY (JOB_CODE) REFERENCES JOB(JOB_CODE);
+
+
+-- 실습 문제 --
+-- 도서관리 프로그램을 만들기 위한 테이블들 만들기 --
+-- 이때, 제약조건에 이름을 부여할것
+-- 각 컬럼에 주석 달기
+
+-- 1. 출판사들에 대한 데이터를 담기 위한 출판사 테이블 (TB_PUBLISHER)
+-- 컬럼 : PUB_NO (출판사번호) -- 기본키 (PUBLISHER_PK)
+--        PUB_NAME (출판사명) -- NOT NULL (PUBLISHER_NN)
+--        PHONE (출판사전화번호) -- 제약조건 없음
+CREATE TABLE TB_PUBLISHER(
+    PUB_NO NUMBER CONSTRAINT PUBLISHER_PK PRIMARY KEY,
+    PUB_NAME VARCHAR2(20) CONSTRAINT PUBLISHER_NN NOT NULL,
+    PHONE VARCHAR2(15)
+);
+COMMENT ON COLUMN TB_PUBLISHER.PUB_NO IS '출판사 번호';
+COMMENT ON COLUMN TB_PUBLISHER.PUB_NAME IS '출판사 명';
+COMMENT ON COLUMN TB_PUBLISHER.PHONE IS '출판사 전화번호';
+-- 3개 정도의 샘플 데이터 추가하기
+INSERT INTO TB_PUBLISHER VALUES(1,'KH출판사','02-123-4567');
+INSERT INTO TB_PUBLISHER VALUES(2,'당산출판사','02-321-6543');
+INSERT INTO TB_PUBLISHER VALUES(3,'정보출판사','02-789-4561');
+
+SELECT * FROM TB_PUBLISHER;
+
+-- 2. 도서들에 대한 데이터를 담기 위한 도서 테이블 (TB_BOOK)
+-- 컬럼 : BK_NO (도서번호) -- 기본키 (BOOK_PK)
+--        BK_TITLE (도서명) -- NOT NULL (BOOK_NN_TITLE)
+--        BK_AUTHOR (저자명) -- NOT NULL (BOOK_NN_AUTHOR)
+--        BK_PRICE (가격)
+--        BK_PUB_NO (출판사번호) -- 외래키(BOOK_FK) (TB_PUBLISHER 테이블을 참조하도록)
+--                                 이 때, 참조하고 있는 부모데이터 삭제 시 자식 데이터도 삭제 되도록 한다.
+CREATE TABLE TB_BOOK(
+    BK_NO NUMBER CONSTRAINT BOOK_PK PRIMARY KEY,
+    BK_TITLE VARCHAR2(30) CONSTRAINT BOOK_NN_TITLE NOT NULL,
+    BK_AUTHOR VARCHAR2(20) CONSTRAINT BOOK_NN_AUTHOR NOT NULL,
+    BK_PRICE NUMBER,
+    BK_PUB_NO NUMBER CONSTRAINT BOOK_FK REFERENCES TB_PUBLISHER(PUB_NO) ON DELETE CASCADE
+);
+COMMENT ON COLUMN TB_BOOK.BK_NO IS '도서번호';
+COMMENT ON COLUMN TB_BOOK.BK_TITLE IS '도서명';
+COMMENT ON COLUMN TB_BOOK.BK_AUTHOR IS '저자명';
+COMMENT ON COLUMN TB_BOOK.BK_PRICE IS '가격';
+COMMENT ON COLUMN TB_BOOK.BK_PUB_NO IS '출판사번호';
+-- 5개 정도의 샘플 데이터 추가하기
+INSERT INTO TB_BOOK VALUES (1, '1월의 날씨', '홍길동', 10000, 1);
+INSERT INTO TB_BOOK VALUES (2, '2월의 날씨', '김기동', 20000, 2);
+INSERT INTO TB_BOOK VALUES (3, '3월의 날씨', '이백조', 30000, 3);
+INSERT INTO TB_BOOK VALUES (4, '4월의 날씨', '최부자', 40000, 1);
+INSERT INTO TB_BOOK VALUES (5, '5월의 날씨', '박대감', 50000, 2);
+
+SELECT * FROM TB_BOOK;
+
+-- 3. 회원에 대한 데이터를 담기 위한 회원 테이블 (TB_MEMBER)
+-- 컬럼명 : MEMBER_NO (회원번호) -- 기본키 (MEMBER_PK)
+--         MEMBER_ID (아이디) -- 중복금지 (MEMBER_UQ)
+--         MEMBER_PWD (비밀번호) -- NOT NULL (MEMBER_NN_PWD)
+--         MEMBER_NAME (회원명) -- NOT NULL (MEMBER_NN_NAME)
+--         GENDER (성별) -- 'M' 또는 'F' 로 입력되도록 제한 (MEMBER_CK_GEN)
+--         ADDRESS (주소)
+--         PHONE (연락처)
+--         STATUS (탈퇴여부) -- 기본값으로 'N' 으로 지정, 그리고 'Y' 혹은 'N' 으로만 입력되도록 제약조건 (MEMBER_CK_ST)
+--         ENROLL_DATE (가입일) -- 기본값으로 SYSDATE, NOT NULL 제약조건 (MEMBER_NN_EN)
+CREATE TABLE TB_MEMBER(
+    MEMBER_NO NUMBER CONSTRAINT MEMBER_PK PRIMARY KEY,
+    MEMBER_ID VARCHAR2(15) CONSTRAINT MEMBER_UQ NOT NULL UNIQUE,
+    MEMBER_PWD VARCHAR2(15) CONSTRAINT MEMBER_NN_PWD NOT NULL,
+    MEMBER_NAME VARCHAR2(15) CONSTRAINT MEMBER_NN_NAME NOT NULL,
+    GENDER CHAR(2) CONSTRAINT MEMBER_CK_GEN CHECK (GENDER IN ('M', 'F')),
+    ADDRESS VARCHAR2(100),
+    PHONE VARCHAR2(15),
+    STATUS CHAR(2) DEFAULT 'N' CONSTRAINT MEMBER_CK_ST CHECK(STATUS IN ('Y', 'N')),
+    ENROLL_DATE DATE DEFAULT SYSDATE CONSTRAINT MEMBER_NN_EN NOT NULL 
+);
+COMMENT ON COLUMN TB_MEMBER.MEMBER_NO IS '회원번호';
+COMMENT ON COLUMN TB_MEMBER.MEMBER_ID IS '아이디';
+COMMENT ON COLUMN TB_MEMBER.MEMBER_PWD IS '비밀번호';
+COMMENT ON COLUMN TB_MEMBER.MEMBER_NAME IS '회원명';
+COMMENT ON COLUMN TB_MEMBER.GENDER IS '성별';
+COMMENT ON COLUMN TB_MEMBER.ADDRESS IS '주소';
+COMMENT ON COLUMN TB_MEMBER.PHONE IS '연락처';
+COMMENT ON COLUMN TB_MEMBER.STATUS IS '탈퇴여부';
+COMMENT ON COLUMN TB_MEMBER.ENROLL_DATE IS '가입일';
+-- 5개 정도의 샘플 데이터 추가하기
+INSERT INTO TB_MEMBER VALUES(1,'user01','pass01','일인자','M','강남구 일원동','010-1234-5678','Y',DEFAULT);
+INSERT INTO TB_MEMBER VALUES(2,'user02','pass02','이인자','F','강서구 송정동','010-2144-1223','Y',DEFAULT);
+INSERT INTO TB_MEMBER VALUES(3,'user03','pass03','삼인자','F','강남구 삼성동','010-2461-8532',DEFAULT,DEFAULT);
+INSERT INTO TB_MEMBER VALUES(4,'user04','pass04','사인자','M','강서구 개화동','010-2152-3556',DEFAULT,DEFAULT);
+INSERT INTO TB_MEMBER VALUES(5,'user05','pass05','오인자','M','영등포구 당산동','010-5665-5319','Y',DEFAULT);
+SELECT * FROM TB_MEMBER;
+-- 4. 어떤 회원이 어떤 도서를 대여했는지에 대한 대여목록 테이블 (TB_RENT)
+-- 컬럼 : RENT_NO (대여번호) -- 기본키 (RENT_PK)
+--        RENT_MEM_NO (대여회원번호) -- 외래키 (RENT_FK_MEM) TB_MEMBER 와 참조하도록
+--                                    이 때, 부모 데이터 삭제 시 자식 데이터 값이 NULL 이 되도록 옵션 설정
+--        RENT_BOOK_NO (대여도서번호) -- DHLFOZL (RENT_FK_BOOK) TB_BOOK 와 참조하도록
+--                                     이 때, 부모 데이터 삭제 시 자식 데이터 값이 NULL 값이 되도록 옵션 설정
+--        RENT_DATE (대여일) -- 기본값 SYSDATE
+CREATE TABLE TB_RENT(
+    RENT_NO NUMBER CONSTRAINT RENT_PK PRIMARY KEY,
+    RENT_MEM_NO NUMBER CONSTRAINT RENT_FK_MEM REFERENCES TB_MEMBER(MEMBER_NO) ON DELETE SET NULL,
+    RENT_BOOK_NO NUMBER CONSTRAINT RENT_FK_BOOK REFERENCES TB_BOOK(BK_NO) ON DELETE SET NULL,
+    RENT_DATE DATE DEFAULT SYSDATE
+);
+
+COMMENT ON COLUMN TB_RENT.RENT_NO IS '대여번호';
+COMMENT ON COLUMN TB_RENT.RENT_MEM_NO IS '대여회원번호';
+COMMENT ON COLUMN TB_RENT.RENT_BOOK_NO IS '대여도서번호';
+COMMENT ON COLUMN TB_RENT.RENT_DATE IS '대여일';
+-- 3개 정도의 샘플 데이터 추가하기
+INSERT INTO TB_RENT VALUES(1, 1, 1, DEFAULT);
+INSERT INTO TB_RENT VALUES(2, 2, 2, DEFAULT);
+INSERT INTO TB_RENT VALUES(3, 3, 3, DEFAULT);
+
+SELECT * FROM TB_RENT;
+
+
+
+
+
+
+
+
+
+
