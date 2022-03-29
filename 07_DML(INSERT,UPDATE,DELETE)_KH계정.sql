@@ -247,3 +247,40 @@ SELECT * FROM EMPLOYEE;
 DELETE FROM EMPLOYEE WHERE EMP_NAME IN ('김말똥','박말순');
 SELECT * FROM EMPLOYEE;
 COMMIT;
+
+--DEPARTMENT 테이블로부터 DEPT_ID가 D1인 부서 삭제
+DELETE FROM DEPARTMENT WHERE DEPT_ID='D1';
+--integrity constraint (KH.SYS_C007197) violated - child record found
+--삭제 안됨=> EMPLOYEE 테이블에서 D1을 가져다 쓰는 자식데이터가 있기 때문에
+
+--DEPARTMENT 테이블로부터 DEPT_ID가 D3인 부서 삭제
+DELETE FROM DEPARTMENT WHERE DEPT_ID='D3';
+--삭제됨: D3을 가져다 쓰고있는 자식데이터가 없기 때문에
+
+SELECT * FROM DEPARTMENT;
+
+
+--DEPARTMENT 테이블 DELETE 전으로 복구
+ROLLBACK;
+
+------------------------------------------------------------------------------------------
+
+/*
+    * TRUNCATE: 테이블의 전체 행을 삭제할 때 사용하는 구문(절삭)
+                    DELETE FROM 테이블명; 과 같은 역할
+                    단, DELETE 보다 수행속도가 더 빠르다
+                    별도의 조건 제시 불가, ROLLBACK이 불가함
+    [표현법]
+    TRUNCATE TABLE 테이블명;    |       DELETE FROM 테이블명;
+    =============================================
+    별도의 조건제시 불가            |       특정 조건제시 가능
+    수행속도가 더 빠름               |       수행속도가 좀 느림
+    ROLLBACK이 불가                |       ROLLBACK 가능
+*/
+
+SELECT * FROM EMP_SALARY;
+
+DELETE FROM EMP_SALARY;
+ROLLBACK;
+
+TRUNCATE TABLE EMP_SALARY; --Table EMP_SALARY이(가) 잘렸습니다.
